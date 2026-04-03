@@ -46,20 +46,26 @@ jobs:
           wget https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip
           unzip android-ndk-${NDK_VERSION}-linux.zip
           echo "ANDROID_NDK_HOME=$PWD/android-ndk-${NDK_VERSION}" >> $GITHUB_ENV
+          # 将 NDK 工具链加入 PATH
           echo "$PWD/android-ndk-${NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
 
       - name: Install Python build dependencies
         run: |
           pip install --upgrade pip
-          # 显式安装 setuptools 和 wheel，确保构建后端可用
-          pip install setuptools wheel cython numpy scikit-build-core build
+          pip install setuptools wheel cython numpy scikit-build-core
 
       - name: Build wheel for Android
         env:
+          # CMake 工具链文件
           CMAKE_ARGS: "-DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake -DANDROID_ABI=${{ inputs.android_abi }} -DANDROID_PLATFORM=24"
+          # 强制使用 NDK 的编译器
+          CC: "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/${{ inputs.android_abi == 'arm64-v8a' && 'aarch64' || 'armv7a' }}-linux-android24-clang"
+          CXX: "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/${{ inputs.android_abi == 'arm64-v8a' && 'aarch64' || 'armv7a' }}-linux-android24-clang++"
+          # 禁用 pip 隔离构建
           PIP_NO_BUILD_ISOLATION: 1
         run: |
-          python -m build --wheel --no-isolation
+          # 使用 pip wheel 构建（比 python -m build 更可靠）
+          pip wheel . --no-build-isolation -w dist
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
